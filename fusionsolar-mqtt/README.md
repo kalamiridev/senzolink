@@ -22,6 +22,18 @@ MQTT
 - A Huawei FusionSolar account
 - A FusionSolar plant ID
 
+## Container image
+
+The public image is available on Docker Hub:
+
+```bash
+docker pull senzolink/fusionsolar-mqtt:1.0.0
+```
+
+`docker-compose.yml` uses this versioned image by default. A versioned tag
+keeps deployments reproducible; update the image tag deliberately when
+upgrading.
+
 ## Configuration
 
 ```bash
@@ -34,8 +46,9 @@ Set the following variables in `.env`; never commit it.
 | --- | --- |
 | `FUSIONSOLAR_USERNAME` | Huawei FusionSolar account username. |
 | `FUSIONSOLAR_PASSWORD` | Huawei FusionSolar account password. |
-| `FUSIONSOLAR_SUBDOMAIN` | FusionSolar regional subdomain; the default is `uni001eu5`. |
+| `FUSIONSOLAR_SUBDOMAIN` | FusionSolar regional hostname prefix from your login URL; the default is `uni001eu5`. |
 | `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
+| `FUSIONSOLAR_MQTT_IMAGE` | Optional image override, for example an image hosted in a private registry. The default is `senzolink/fusionsolar-mqtt:1.0.0`. |
 | `MQTT_HOST` | Docker DNS name or hostname of the MQTT broker, such as `mqtt`. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
 | `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
@@ -44,6 +57,30 @@ Set the following variables in `.env`; never commit it.
 | `HA_DISCOVERY_NODE_ID` | Discovery node ID; defaults to `fusionsolar`. |
 | `HA_DEVICE_ID` | Optional stable device ID. Leave it empty to derive a stable ID from `MQTT_TOPIC`. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `60`. |
+
+## FusionSolar regional endpoint
+
+Set `FUSIONSOLAR_SUBDOMAIN` to the hostname prefix shown in the FusionSolar
+login URL for your account. For example, if the browser URL begins with
+`https://region01eu5.fusionsolar.huawei.com`, set:
+
+```env
+FUSIONSOLAR_SUBDOMAIN=region01eu5
+```
+
+The client also accepts the full FusionSolar hostname without `https://`, but
+the short prefix is clearer. Do not guess the endpoint from your country; use
+the exact hostname to which FusionSolar directs your account.
+
+Huawei currently documents common prefixes including `intl`, `eu5`, `au7`,
+`au1`, `br1`, `jp5`, `la5`, `sg5`, `intlobt`, and the European clusters
+`region01eu5` through `region05eu5`. Some accounts use `uni...` prefixes, such
+as `uni001eu5`. Huawei's list can change, so the login URL is the source of
+truth. This bridge only accepts FusionSolar hosts; partner domains outside
+`*.fusionsolar.huawei.com` are not supported.
+
+See Huawei's [management-system domain list](https://info.support.huawei.com/DpinfoAppDoc/pre_erp_slice_00/doc/owner/pv_ess/en/en-us_topic_0000002513471347.html)
+for its current regional endpoints.
 
 ## MQTT topic
 
@@ -160,8 +197,7 @@ docker logs -f fusionsolar-mqtt-dev
 
 ## Production deployment
 
-Replace `REGISTRY_HOST` in `docker-compose.yml` with your private registry
-hostname, then:
+Create and configure `.env`, then pull and start the versioned public image:
 
 ```bash
 docker compose pull
@@ -180,6 +216,13 @@ Restart the service:
 docker compose restart fusionsolar-mqtt
 ```
 
+To use an image from another registry, set `FUSIONSOLAR_MQTT_IMAGE` in `.env`.
+For example:
+
+```env
+FUSIONSOLAR_MQTT_IMAGE=registry.example.com/fusionsolar-mqtt:1.0.0
+```
+
 ## Docker network
 
 The Compose examples use an external Docker network named `proxy`. The broker
@@ -192,15 +235,10 @@ MQTT_HOST=mqtt
 Users with a different Docker environment can adapt the Compose network and
 broker hostname accordingly.
 
-## Registry build
+## Build locally
 
 ```bash
 docker build \
-  -t REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0 \
+  -t fusionsolar-mqtt:local \
   .
-```
-
-```bash
-docker push \
-  REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0
 ```
