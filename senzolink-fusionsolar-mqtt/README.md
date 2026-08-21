@@ -1,7 +1,7 @@
-# FusionSolar → MQTT bridge
+# Publish FusionSolar plant data to MQTT
 
-Docker service that reads Huawei FusionSolar plant data and publishes it to an
-MQTT broker.
+Containerized service that reads Huawei FusionSolar plant data and publishes a
+retained JSON payload to an MQTT broker.
 
 ## Architecture
 
@@ -84,8 +84,9 @@ is available, that cycle does not publish a payload or a new timestamp.
 After an exception, the current FusionSolar client is discarded, so the next
 attempt creates a new client and login. After three consecutive failures the
 service waits 300 seconds. The first successful cycle resets the failure
-counter. `restart: unless-stopped` only protects against a stopped process; it
-does not replace API retry logic.
+counter. `restart: unless-stopped` restarts the container if its process exits,
+unless it was manually stopped. It complements, but does not replace, the
+in-process FusionSolar API retry logic.
 
 ## Home Assistant
 
