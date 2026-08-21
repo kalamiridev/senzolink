@@ -30,7 +30,7 @@ The public image is available on Docker Hub:
 docker pull senzolink/fusionsolar-mqtt:1.0.1
 ```
 
-`docker-compose.yml` uses this versioned image by default. A versioned tag
+`compose.yaml` uses this versioned image by default. A versioned tag
 keeps deployments reproducible; update the image tag deliberately when
 upgrading.
 
@@ -194,13 +194,13 @@ acknowledgement. Neither case proves that Home Assistant has processed it.
 ## Development build
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f compose.dev.yaml up --build -d
 ```
 
 ## Logs
 
 ```bash
-docker compose -f docker-compose.dev.yml logs -f fusionsolar-mqtt
+docker compose -f compose.dev.yaml logs -f fusionsolar-mqtt
 ```
 
 ## Production deployment
@@ -236,7 +236,7 @@ MQTT_HOST=mqtt.example.net
 
 If your broker is a service in another Docker Compose project, attach this
 service to the same external network with a local Compose override. For
-example, create `docker-compose.override.yml` next to `docker-compose.yml`:
+example, create `compose.override.yaml` next to `compose.yaml`:
 
 ```yaml
 services:
