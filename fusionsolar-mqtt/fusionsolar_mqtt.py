@@ -45,6 +45,24 @@ MQTT_PORT = int(
 
 MQTT_TOPIC = os.environ["MQTT_TOPIC"]
 
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "").strip()
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+
+MQTT_TLS_ENABLED = os.getenv(
+    "MQTT_TLS_ENABLED",
+    "false"
+).strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off"
+}
+
+MQTT_TLS_CA_CERT = os.getenv(
+    "MQTT_TLS_CA_CERT",
+    ""
+).strip()
+
 try:
     MQTT_QOS = int(os.getenv("MQTT_QOS", "0").strip())
 except ValueError as exc:
@@ -56,7 +74,7 @@ if MQTT_QOS not in {0, 1, 2}:
 POLL_INTERVAL = int(
     os.getenv(
         "POLL_INTERVAL",
-        "60"
+        "180"
     )
 )
 
@@ -115,6 +133,16 @@ for name, value in {
 }.items():
     if not value.strip():
         raise RuntimeError(f"{name} must not be empty")
+
+if MQTT_PASSWORD and not MQTT_USERNAME:
+    raise RuntimeError(
+        "MQTT_USERNAME is required when MQTT_PASSWORD is set"
+    )
+
+if MQTT_TLS_CA_CERT and not MQTT_TLS_ENABLED:
+    raise RuntimeError(
+        "MQTT_TLS_ENABLED must be true when MQTT_TLS_CA_CERT is set"
+    )
 
 if HA_DISCOVERY_ENABLED:
 
@@ -265,6 +293,18 @@ def create_mqtt_client():
     client = mqtt.Client(
         mqtt.CallbackAPIVersion.VERSION2
     )
+
+    if MQTT_USERNAME:
+        client.username_pw_set(
+            MQTT_USERNAME,
+            MQTT_PASSWORD or None
+        )
+
+    if MQTT_TLS_ENABLED:
+        if MQTT_TLS_CA_CERT:
+            client.tls_set(ca_certs=MQTT_TLS_CA_CERT)
+        else:
+            client.tls_set()
 
     client.connect(
         MQTT_HOST,

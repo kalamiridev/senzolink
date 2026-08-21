@@ -57,11 +57,49 @@ require an `env_file` entry or a physical `.env` file alongside the YAML.
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
 | `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
 | `MQTT_QOS` | MQTT quality of service (`0`, `1`, or `2`); defaults to `0`. |
+| `MQTT_USERNAME` | Optional MQTT broker username. |
+| `MQTT_PASSWORD` | Optional MQTT broker password; requires `MQTT_USERNAME`. |
+| `MQTT_TLS_ENABLED` | Enables TLS for the MQTT connection; defaults to `false`. |
+| `MQTT_TLS_CA_CERT` | Optional in-container path to a custom CA certificate; requires TLS. |
 | `HA_DISCOVERY_ENABLED` | Enables Home Assistant discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
 | `HA_DISCOVERY_PREFIX` | Home Assistant discovery prefix; defaults to `homeassistant`. |
 | `HA_DISCOVERY_NODE_ID` | Discovery node ID; defaults to `fusionsolar`. |
 | `HA_DEVICE_ID` | Optional stable device ID. Leave it empty to derive a stable ID from `MQTT_TOPIC`. |
-| `POLL_INTERVAL` | Polling interval in seconds; the default is `60`. |
+| `POLL_INTERVAL` | Polling interval in seconds; the default is `180`. |
+
+## MQTT authentication and TLS
+
+For a broker that requires credentials, set:
+
+```env
+MQTT_USERNAME=bridge
+MQTT_PASSWORD=replace-with-a-secret
+```
+
+For a broker using a publicly trusted TLS certificate, enable TLS and use its
+TLS port (commonly `8883`):
+
+```env
+MQTT_PORT=8883
+MQTT_TLS_ENABLED=true
+```
+
+For a private CA, mount its certificate into the container and reference its
+container path. For example, add this local Compose override:
+
+```yaml
+services:
+  fusionsolar-mqtt:
+    volumes:
+      - ./mqtt-ca.crt:/certs/mqtt-ca.crt:ro
+```
+
+Then set:
+
+```env
+MQTT_TLS_ENABLED=true
+MQTT_TLS_CA_CERT=/certs/mqtt-ca.crt
+```
 
 ## FusionSolar regional endpoint
 
@@ -118,6 +156,11 @@ broker keeps the latest successfully received payload. Set `MQTT_QOS=1` when
 the publisher should wait for a broker acknowledgement, or `MQTT_QOS=2` only
 when exactly-once delivery between the bridge and broker is specifically
 required.
+
+FusionSolar cloud values commonly refresh only every few minutes. The default
+`POLL_INTERVAL=180` therefore avoids unnecessary API calls while keeping the
+published state reasonably fresh; lower it only when your account actually
+returns newer data more often.
 
 ## Power fallback
 
@@ -285,3 +328,7 @@ docker build \
   -t fusionsolar-mqtt:local \
   .
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
