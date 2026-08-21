@@ -254,25 +254,28 @@ Set `MQTT_HOST` to the broker's Docker DNS name on that shared network.
 
 ## Local MQTT test broker
 
-`compose.test.yaml` adds an ephemeral Mosquitto broker named `mqtt` to the
-same Compose network. It has no persistence and deliberately allows anonymous
-connections, so use it only for local testing, never for production.
+`compose.test.yaml` is a complete, standalone test stack. It starts the bridge
+and an ephemeral Mosquitto broker named `mqtt` on the same network. The broker
+has no persistence and deliberately allows anonymous connections, so use it
+only for local testing, never for production.
 
-With a configured local `.env`, start the bridge and test broker together:
+Set the required FusionSolar variables in your local `.env` or stack
+environment editor. `MQTT_HOST` is not required for this test stack because it
+is fixed to its internal broker.
+
+Start the test stack:
 
 ```bash
-docker compose -f compose.yaml -f compose.test.yaml up -d
+docker compose -f compose.test.yaml up -d
 ```
 
-The test override routes the bridge to `MQTT_HOST=mqtt` automatically.
-
-For Dockge, use `compose.yaml` for the production stack. The separate test
-file is intended for a local Docker Compose test before deployment.
+In Dockge, deploy `compose.test.yaml` as the test stack. For production, deploy
+`compose.yaml` and set `MQTT_HOST` to your real broker.
 
 To stop and remove the test broker, run:
 
 ```bash
-docker compose -f compose.yaml -f compose.test.yaml down
+docker compose -f compose.test.yaml down
 ```
 
 ## Build locally
