@@ -111,10 +111,11 @@ client/CLIENT_ID/ha
 ```
 
 In Home Assistant, open **Settings → Devices & services → MQTT → Configure →
-Configure MQTT Options**, then set the discovery prefix. The broker and client
-ID must match the values used by this service. After starting the container,
-look for the **FusionSolar** device in Home Assistant. The retained discovery
-messages also let Home Assistant discover the sensors after a restart.
+Configure MQTT Options**, then set the discovery prefix. Home Assistant must
+connect to the same MQTT broker, and the discovery prefix must use the same
+`CLIENT_ID` segment as `MQTT_TOPIC`. After starting the container, look for the
+**FusionSolar** device in Home Assistant. The retained discovery messages also
+let Home Assistant discover the sensors after a restart.
 
 See the [Home Assistant MQTT documentation](https://www.home-assistant.io/integrations/mqtt/)
 for its current MQTT integration setup and discovery options.
