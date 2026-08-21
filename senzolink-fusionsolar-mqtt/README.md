@@ -38,16 +38,28 @@ Set the following variables in `.env`; never commit it.
 | `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
 | `MQTT_HOST` | Docker DNS name or hostname of the MQTT broker, such as `mqtt`. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
-| `MQTT_TOPIC` | Topic receiving the retained plant payload. |
+| `MQTT_TOPIC` | Required SenzoLink-compatible topic receiving the retained plant payload. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `60`. |
 
-## MQTT topic
+## MQTT topic and SenzoLink convention
 
-The expected topic format is:
+`MQTT_TOPIC` is not an arbitrary MQTT topic in this version of the service. It
+must use this exact four-part format:
 
 ```text
 client/CLIENT_ID/GATEWAY_ID/FusionSolar
 ```
+
+The service uses `CLIENT_ID` and `GATEWAY_ID` to build stable Home Assistant
+device identifiers and discovery topics. For a non-SenzoLink installation,
+choose your own stable values, for example:
+
+```text
+client/my-home/gateway-1/FusionSolar
+```
+
+Do not use a topic such as `solar/fusionsolar`: the application rejects it
+because it cannot derive the required identifiers.
 
 ## MQTT payload
 
@@ -81,8 +93,31 @@ does not replace API retry logic.
 
 ## Home Assistant discovery
 
-On startup the service publishes MQTT Discovery sensors for current power and
-daily, monthly, yearly, and cumulative production.
+On startup the service publishes retained MQTT Discovery sensors for current
+power and daily, monthly, yearly, and cumulative production.
+
+For `MQTT_TOPIC=client/CLIENT_ID/GATEWAY_ID/FusionSolar`, the configuration
+messages are published below:
+
+```text
+client/CLIENT_ID/ha/sensor/fusionsolar/<sensor>/config
+```
+
+Home Assistant uses `homeassistant` as its default MQTT discovery prefix, so
+change the MQTT integration's discovery prefix to this matching value:
+
+```text
+client/CLIENT_ID/ha
+```
+
+In Home Assistant, open **Settings → Devices & services → MQTT → Configure →
+Configure MQTT Options**, then set the discovery prefix. The broker and client
+ID must match the values used by this service. After starting the container,
+look for the **FusionSolar** device in Home Assistant. The retained discovery
+messages also let Home Assistant discover the sensors after a restart.
+
+See the [Home Assistant MQTT documentation](https://www.home-assistant.io/integrations/mqtt/)
+for its current MQTT integration setup and discovery options.
 
 ## Development build
 
