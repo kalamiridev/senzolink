@@ -1,0 +1,13 @@
+services:
+  fusionsolar-mqtt:
+    environment:
+      MQTT_HOST: mqtt
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        printf '%s\n' 'listener 1883' 'allow_anonymous true' 'persistence false' > /tmp/mosquitto.conf
+        exec mosquitto -c /tmp/mosquitto.conf
