@@ -1,13 +1,6 @@
 services:
   fusionsolar-mqtt:
-    image: ${FUSIONSOLAR_MQTT_IMAGE:-senzolink/fusionsolar-mqtt:1.0.0}
-    container_name: fusionsolar-mqtt
+    image: senzolink/fusionsolar-mqtt:1.0.1
     env_file:
       - .env
-    networks:
-      - proxy
     restart: unless-stopped
-
-networks:
-  proxy:
-    external: true

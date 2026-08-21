@@ -27,7 +27,7 @@ MQTT
 The public image is available on Docker Hub:
 
 ```bash
-docker pull senzolink/fusionsolar-mqtt:1.0.0
+docker pull senzolink/fusionsolar-mqtt:1.0.1
 ```
 
 `docker-compose.yml` uses this versioned image by default. A versioned tag
@@ -46,10 +46,9 @@ Set the following variables in `.env`; never commit it.
 | --- | --- |
 | `FUSIONSOLAR_USERNAME` | Huawei FusionSolar account username. |
 | `FUSIONSOLAR_PASSWORD` | Huawei FusionSolar account password. |
-| `FUSIONSOLAR_SUBDOMAIN` | FusionSolar regional hostname prefix from your login URL; the default is `uni001eu5`. |
+| `FUSIONSOLAR_SUBDOMAIN` | Required FusionSolar regional hostname prefix from your login URL. |
 | `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
-| `FUSIONSOLAR_MQTT_IMAGE` | Optional image override, for example an image hosted in a private registry. The default is `senzolink/fusionsolar-mqtt:1.0.0`. |
-| `MQTT_HOST` | Docker DNS name or hostname of the MQTT broker, such as `mqtt`. |
+| `MQTT_HOST` | Required hostname or IP address of the MQTT broker, reachable from the container. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
 | `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
 | `HA_DISCOVERY_ENABLED` | Enables Home Assistant discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
@@ -185,14 +184,13 @@ message.
 ## Development build
 
 ```bash
-docker compose -f docker-compose.dev.yml build
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up --build -d
 ```
 
 ## Logs
 
 ```bash
-docker logs -f fusionsolar-mqtt-dev
+docker compose -f docker-compose.dev.yml logs -f fusionsolar-mqtt
 ```
 
 ## Production deployment
@@ -216,24 +214,33 @@ Restart the service:
 docker compose restart fusionsolar-mqtt
 ```
 
-To use an image from another registry, set `FUSIONSOLAR_MQTT_IMAGE` in `.env`.
-For example:
+## MQTT network
+
+The Compose files do not require a pre-existing Docker network. Set
+`MQTT_HOST` to a DNS name or IP address that is reachable from the container,
+for example:
 
 ```env
-FUSIONSOLAR_MQTT_IMAGE=registry.example.com/fusionsolar-mqtt:1.0.0
+MQTT_HOST=mqtt.example.net
 ```
 
-## Docker network
+If your broker is a service in another Docker Compose project, attach this
+service to the same external network with a local Compose override. For
+example, create `docker-compose.override.yml` next to `docker-compose.yml`:
 
-The Compose examples use an external Docker network named `proxy`. The broker
-is reached through Docker DNS, for example:
+```yaml
+services:
+  fusionsolar-mqtt:
+    networks:
+      - mqtt
 
-```env
-MQTT_HOST=mqtt
+networks:
+  mqtt:
+    external: true
+    name: mqtt
 ```
 
-Users with a different Docker environment can adapt the Compose network and
-broker hostname accordingly.
+Set `MQTT_HOST` to the broker's Docker DNS name on that shared network.
 
 ## Build locally
 

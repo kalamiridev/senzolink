@@ -25,10 +25,7 @@ load_dotenv()
 FUSIONSOLAR_USERNAME = os.environ["FUSIONSOLAR_USERNAME"]
 FUSIONSOLAR_PASSWORD = os.environ["FUSIONSOLAR_PASSWORD"]
 
-FUSIONSOLAR_SUBDOMAIN = os.getenv(
-    "FUSIONSOLAR_SUBDOMAIN",
-    "uni001eu5"
-)
+FUSIONSOLAR_SUBDOMAIN = os.environ["FUSIONSOLAR_SUBDOMAIN"].strip()
 
 PLANT_ID = os.environ["FUSIONSOLAR_PLANT_ID"]
 
@@ -37,10 +34,7 @@ PLANT_ID = os.environ["FUSIONSOLAR_PLANT_ID"]
 # MQTT
 # --------------------------------------------------
 
-MQTT_HOST = os.getenv(
-    "MQTT_HOST",
-    "mqtt"
-)
+MQTT_HOST = os.environ["MQTT_HOST"].strip()
 
 MQTT_PORT = int(
     os.getenv(
@@ -106,10 +100,13 @@ FAILURE_BACKOFF = 300
 # MQTT topic validation
 # --------------------------------------------------
 
-if not MQTT_TOPIC.strip():
-    raise RuntimeError(
-        "MQTT_TOPIC must not be empty"
-    )
+for name, value in {
+    "FUSIONSOLAR_SUBDOMAIN": FUSIONSOLAR_SUBDOMAIN,
+    "MQTT_HOST": MQTT_HOST,
+    "MQTT_TOPIC": MQTT_TOPIC,
+}.items():
+    if not value.strip():
+        raise RuntimeError(f"{name} must not be empty")
 
 if HA_DISCOVERY_ENABLED:
 
