@@ -2,8 +2,6 @@ import os
 import json
 import time
 import logging
-import hashlib
-import re
 
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
@@ -27,7 +25,10 @@ FUSIONSOLAR_PASSWORD = os.environ["FUSIONSOLAR_PASSWORD"]
 
 FUSIONSOLAR_SUBDOMAIN = os.environ["FUSIONSOLAR_SUBDOMAIN"].strip()
 
-PLANT_ID = os.environ["FUSIONSOLAR_PLANT_ID"]
+FUSIONSOLAR_PLANT_NAME = os.getenv(
+    "FUSIONSOLAR_PLANT_NAME",
+    ""
+).strip()
 
 
 # --------------------------------------------------
@@ -57,11 +58,6 @@ MQTT_TLS_ENABLED = os.getenv(
     "no",
     "off"
 }
-
-MQTT_TLS_CA_CERT = os.getenv(
-    "MQTT_TLS_CA_CERT",
-    ""
-).strip()
 
 try:
     MQTT_QOS = int(os.getenv("MQTT_QOS", "0").strip())
@@ -93,25 +89,9 @@ HA_DISCOVERY_ENABLED = os.getenv(
     "off"
 }
 
-HA_DISCOVERY_PREFIX = os.getenv(
-    "HA_DISCOVERY_PREFIX",
-    "homeassistant"
-).strip("/")
+HA_DEVICE_ID = "fusionsolar"
 
-HA_DISCOVERY_NODE_ID = os.getenv(
-    "HA_DISCOVERY_NODE_ID",
-    "fusionsolar"
-).strip()
-
-DEFAULT_HA_DEVICE_ID = (
-    "fusionsolar_"
-    f"{hashlib.sha256(MQTT_TOPIC.encode('utf-8')).hexdigest()[:12]}"
-)
-
-HA_DEVICE_ID = os.getenv(
-    "HA_DEVICE_ID",
-    DEFAULT_HA_DEVICE_ID
-).strip() or DEFAULT_HA_DEVICE_ID
+DISCOVERY_BASE = "homeassistant/sensor/fusionsolar"
 
 
 # --------------------------------------------------
@@ -139,38 +119,6 @@ if MQTT_PASSWORD and not MQTT_USERNAME:
         "MQTT_USERNAME is required when MQTT_PASSWORD is set"
     )
 
-if MQTT_TLS_CA_CERT and not MQTT_TLS_ENABLED:
-    raise RuntimeError(
-        "MQTT_TLS_ENABLED must be true when MQTT_TLS_CA_CERT is set"
-    )
-
-if HA_DISCOVERY_ENABLED:
-
-    if not HA_DISCOVERY_PREFIX:
-        raise RuntimeError(
-            "HA_DISCOVERY_PREFIX must not be empty"
-        )
-
-    for name, value in {
-        "HA_DISCOVERY_NODE_ID": HA_DISCOVERY_NODE_ID,
-        "HA_DEVICE_ID": HA_DEVICE_ID
-    }.items():
-
-        if not re.fullmatch(
-            r"[A-Za-z0-9_-]+",
-            value
-        ):
-            raise RuntimeError(
-                f"{name} may contain only letters, numbers, "
-                "underscores, and hyphens"
-            )
-
-    DISCOVERY_BASE = (
-        f"{HA_DISCOVERY_PREFIX}/sensor/"
-        f"{HA_DISCOVERY_NODE_ID}"
-    )
-
-
 # --------------------------------------------------
 # Logging
 # --------------------------------------------------
@@ -195,6 +143,101 @@ def create_fusionsolar_client():
         username=FUSIONSOLAR_USERNAME,
         password=FUSIONSOLAR_PASSWORD,
         huawei_subdomain=FUSIONSOLAR_SUBDOMAIN
+    )
+
+
+def get_plant_name(plant):
+
+    for key in (
+        "stationName",
+        "name",
+        "station_name"
+    ):
+
+        value = plant.get(key)
+
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    return None
+
+
+def describe_plants(plants):
+
+    return ", ".join(
+        get_plant_name(plant) or plant.get("dn", "<unknown>")
+        for plant in plants
+    )
+
+
+def select_plant_id(client):
+
+    plants = client.get_station_list()
+
+    if not plants:
+        raise RuntimeError(
+            "No FusionSolar plants are available to this account"
+        )
+
+    if FUSIONSOLAR_PLANT_NAME:
+
+        matches = [
+            plant
+            for plant in plants
+            if (
+                get_plant_name(plant) or ""
+            ).casefold() == FUSIONSOLAR_PLANT_NAME.casefold()
+        ]
+
+        if len(matches) == 1:
+
+            plant_id = matches[0].get("dn")
+
+            if not plant_id:
+                raise RuntimeError(
+                    "FusionSolar returned a plant without an ID"
+                )
+
+            logging.info(
+                "Selected FusionSolar plant: %s",
+                get_plant_name(matches[0])
+            )
+
+            return plant_id
+
+        if len(matches) > 1:
+            raise RuntimeError(
+                "More than one FusionSolar plant matches "
+                f"FUSIONSOLAR_PLANT_NAME={FUSIONSOLAR_PLANT_NAME!r}; "
+                "use a unique name in FusionSolar"
+            )
+
+        raise RuntimeError(
+            "No FusionSolar plant matches "
+            f"FUSIONSOLAR_PLANT_NAME={FUSIONSOLAR_PLANT_NAME!r}. "
+            f"Available plants: {describe_plants(plants)}"
+        )
+
+    if len(plants) == 1:
+
+        plant_id = plants[0].get("dn")
+
+        if not plant_id:
+            raise RuntimeError(
+                "FusionSolar returned a plant without an ID"
+            )
+
+        logging.info(
+            "Automatically selected FusionSolar plant: %s",
+            get_plant_name(plants[0]) or plant_id
+        )
+
+        return plant_id
+
+    raise RuntimeError(
+        "This FusionSolar account has multiple plants. Set "
+        "FUSIONSOLAR_PLANT_NAME to the exact name shown in "
+        f"FusionSolar. Available plants: {describe_plants(plants)}"
     )
 
 
@@ -301,10 +344,7 @@ def create_mqtt_client():
         )
 
     if MQTT_TLS_ENABLED:
-        if MQTT_TLS_CA_CERT:
-            client.tls_set(ca_certs=MQTT_TLS_CA_CERT)
-        else:
-            client.tls_set()
+        client.tls_set()
 
     client.connect(
         MQTT_HOST,
@@ -330,6 +370,8 @@ def main():
 
     fusion_client = None
 
+    plant_id = None
+
     consecutive_failures = 0
 
     while True:
@@ -346,6 +388,10 @@ def main():
                     create_fusionsolar_client()
                 )
 
+                plant_id = select_plant_id(
+                    fusion_client
+                )
+
             # --------------------------------------
             # Get plant data
             # --------------------------------------
@@ -353,7 +399,7 @@ def main():
             data = (
                 fusion_client
                 .get_current_plant_data(
-                    PLANT_ID
+                    plant_id
                 )
             )
 
@@ -504,6 +550,8 @@ def main():
             )
 
             fusion_client = None
+
+            plant_id = None
 
             if (
                 consecutive_failures

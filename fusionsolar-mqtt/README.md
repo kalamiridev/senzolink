@@ -20,7 +20,6 @@ MQTT
 - Docker and Docker Compose
 - An MQTT broker reachable from the container
 - A Huawei FusionSolar account
-- A FusionSolar plant ID
 
 ## Container image
 
@@ -52,7 +51,7 @@ require an `env_file` entry or a physical `.env` file alongside the YAML.
 | `FUSIONSOLAR_USERNAME` | Huawei FusionSolar account username. |
 | `FUSIONSOLAR_PASSWORD` | Huawei FusionSolar account password. |
 | `FUSIONSOLAR_SUBDOMAIN` | Required FusionSolar regional hostname prefix from your login URL. |
-| `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
+| `FUSIONSOLAR_PLANT_NAME` | Optional exact plant name as shown in FusionSolar. Required only when the account has multiple plants. |
 | `MQTT_HOST` | Required hostname or IP address of the MQTT broker, reachable from the container. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
 | `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
@@ -60,11 +59,7 @@ require an `env_file` entry or a physical `.env` file alongside the YAML.
 | `MQTT_USERNAME` | Optional MQTT broker username. |
 | `MQTT_PASSWORD` | Optional MQTT broker password; requires `MQTT_USERNAME`. |
 | `MQTT_TLS_ENABLED` | Enables TLS for the MQTT connection; defaults to `false`. |
-| `MQTT_TLS_CA_CERT` | Optional in-container path to a custom CA certificate; requires TLS. |
-| `HA_DISCOVERY_ENABLED` | Enables Home Assistant discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
-| `HA_DISCOVERY_PREFIX` | Home Assistant discovery prefix; defaults to `homeassistant`. |
-| `HA_DISCOVERY_NODE_ID` | Discovery node ID; defaults to `fusionsolar`. |
-| `HA_DEVICE_ID` | Optional stable device ID. Leave it empty to derive a stable ID from `MQTT_TOPIC`. |
+| `HA_DISCOVERY_ENABLED` | Enables standard Home Assistant MQTT discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `180`. |
 
 ## MQTT authentication and TLS
@@ -82,23 +77,6 @@ TLS port (commonly `8883`):
 ```env
 MQTT_PORT=8883
 MQTT_TLS_ENABLED=true
-```
-
-For a private CA, mount its certificate into the container and reference its
-container path. For example, add this local Compose override:
-
-```yaml
-services:
-  fusionsolar-mqtt:
-    volumes:
-      - ./mqtt-ca.crt:/certs/mqtt-ca.crt:ro
-```
-
-Then set:
-
-```env
-MQTT_TLS_ENABLED=true
-MQTT_TLS_CA_CERT=/certs/mqtt-ca.crt
 ```
 
 ## FusionSolar regional endpoint
@@ -123,6 +101,22 @@ truth. This bridge only accepts FusionSolar hosts; partner domains outside
 `*.fusionsolar.huawei.com` are not supported.
 
 For Huawei's exact regional host list, see [Domain Name List of Management Systems](https://info.support.huawei.com/DpinfoAppDoc/pre_erp_slice_00/doc/owner/pv_ess/en/en-us_topic_0000002513471347.html).
+
+## Selecting a FusionSolar plant
+
+For the usual case of one FusionSolar plant on an account, leave
+`FUSIONSOLAR_PLANT_NAME` empty. The bridge discovers and selects that plant
+automatically after signing in.
+
+If the same FusionSolar account has access to more than one plant, set
+`FUSIONSOLAR_PLANT_NAME` to the exact name shown in the FusionSolar app or web
+portal:
+
+```env
+FUSIONSOLAR_PLANT_NAME=Home
+```
+
+The selected name must be unique on that FusionSolar account.
 
 ## MQTT topic
 
@@ -209,17 +203,9 @@ The bridge then only publishes its retained JSON payload to `MQTT_TOPIC`. Your
 custom discovery configuration should use that value as its `state_topic` and
 read the documented JSON keys, for example `value_json.power`.
 
-To use a non-standard discovery prefix while keeping bridge-managed discovery,
-set a custom prefix:
-
-```env
-HA_DISCOVERY_PREFIX=my-discovery
-```
-
-Home Assistant must then use the same discovery prefix. `HA_DISCOVERY_NODE_ID`
-and `HA_DEVICE_ID` let multiple bridge instances share one broker without
-discovery-topic or device-ID collisions. The discovery configuration also sets
-the sensor subscription QoS from `MQTT_QOS`.
+When enabled, bridge-managed discovery always uses Home Assistant's standard
+`homeassistant` prefix. The discovery configuration also sets the sensor
+subscription QoS from `MQTT_QOS`.
 
 ## Verifying publishes from container logs
 
