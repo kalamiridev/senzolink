@@ -78,7 +78,7 @@ as `uni001eu5`. Huawei's list can change, so the login URL is the source of
 truth. This bridge only accepts FusionSolar hosts; partner domains outside
 `*.fusionsolar.huawei.com` are not supported.
 
-For account and regional support, visit <a href="https://solar.huawei.com/en/" target="_blank" rel="noopener noreferrer">Huawei FusionSolar</a>.
+For Huawei's exact regional host list, see <a href="https://info.support.huawei.com/DpinfoAppDoc/pre_erp_slice_00/doc/owner/pv_ess/en/en-us_topic_0000002513471347.html" target="_blank" rel="noopener noreferrer">Domain Name List of Management Systems</a>.
 
 ## MQTT topic
 
