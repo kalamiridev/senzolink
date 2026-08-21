@@ -1,6 +1,6 @@
 services:
   fusionsolar-mqtt:
-    image: senzolink/fusionsolar-mqtt:1.0.1
+    image: senzolink/fusionsolar-mqtt:1.0.2
     env_file:
       - .env
     restart: unless-stopped

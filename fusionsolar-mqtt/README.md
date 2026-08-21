@@ -27,7 +27,7 @@ MQTT
 The public image is available on Docker Hub:
 
 ```bash
-docker pull senzolink/fusionsolar-mqtt:1.0.1
+docker pull senzolink/fusionsolar-mqtt:1.0.2
 ```
 
 `docker-compose.yml` uses this versioned image by default. A versioned tag
@@ -51,6 +51,7 @@ Set the following variables in `.env`; never commit it.
 | `MQTT_HOST` | Required hostname or IP address of the MQTT broker, reachable from the container. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
 | `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
+| `MQTT_QOS` | MQTT quality of service (`0`, `1`, or `2`); defaults to `0`. |
 | `HA_DISCOVERY_ENABLED` | Enables Home Assistant discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
 | `HA_DISCOVERY_PREFIX` | Home Assistant discovery prefix; defaults to `homeassistant`. |
 | `HA_DISCOVERY_NODE_ID` | Discovery node ID; defaults to `fusionsolar`. |
@@ -106,7 +107,12 @@ receive the latest known values immediately.
 ```
 
 Values are illustrative. Power is in kW and energy values are in kWh. The
-payload is published with QoS 1 and retained.
+payload is retained and uses `MQTT_QOS`, which defaults to QoS 0. This suits
+periodic telemetry: a missed update is replaced by the next poll, while the
+broker keeps the latest successfully received payload. Set `MQTT_QOS=1` when
+the publisher should wait for a broker acknowledgement, or `MQTT_QOS=2` only
+when exactly-once delivery between the bridge and broker is specifically
+required.
 
 ## Power fallback
 
@@ -164,21 +170,21 @@ HA_DISCOVERY_PREFIX=my-discovery
 
 Home Assistant must then use the same discovery prefix. `HA_DISCOVERY_NODE_ID`
 and `HA_DEVICE_ID` let multiple bridge instances share one broker without
-discovery-topic or device-ID collisions.
+discovery-topic or device-ID collisions. The discovery configuration also sets
+the sensor subscription QoS from `MQTT_QOS`.
 
 ## Verifying publishes from container logs
 
-After a successful QoS 1 publish, the container logs the exact payload topic
-and JSON, for example:
+After `wait_for_publish()` completes, the container logs the exact payload
+topic and JSON, for example:
 
 ```text
 MQTT published to solar/fusionsolar/state: {"power":1.743,...}
 ```
 
-The log is written after `wait_for_publish()` completes, which for QoS 1 means
-the broker has completed the publish acknowledgement. It confirms delivery to
-the MQTT broker, but does not prove that Home Assistant has processed the
-message.
+For QoS 1 or 2, this means the broker has completed its publish acknowledgement.
+For QoS 0, it confirms that the client sent the message, but MQTT has no broker
+acknowledgement. Neither case proves that Home Assistant has processed it.
 
 ## Development build
 

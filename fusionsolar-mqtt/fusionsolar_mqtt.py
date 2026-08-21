@@ -45,6 +45,14 @@ MQTT_PORT = int(
 
 MQTT_TOPIC = os.environ["MQTT_TOPIC"]
 
+try:
+    MQTT_QOS = int(os.getenv("MQTT_QOS", "0").strip())
+except ValueError as exc:
+    raise RuntimeError("MQTT_QOS must be 0, 1, or 2") from exc
+
+if MQTT_QOS not in {0, 1, 2}:
+    raise RuntimeError("MQTT_QOS must be 0, 1, or 2")
+
 POLL_INTERVAL = int(
     os.getenv(
         "POLL_INTERVAL",
@@ -226,6 +234,7 @@ def publish_discovery(client):
     for sensor_id, config in sensors.items():
 
         config["state_topic"] = MQTT_TOPIC
+        config["qos"] = MQTT_QOS
         config["device"] = device
 
         discovery_topic = (
@@ -235,7 +244,7 @@ def publish_discovery(client):
         result = client.publish(
             discovery_topic,
             json.dumps(config),
-            qos=1,
+            qos=MQTT_QOS,
             retain=True
         )
 
@@ -429,7 +438,7 @@ def main():
             result = mqtt_client.publish(
                 MQTT_TOPIC,
                 payload_json,
-                qos=1,
+                qos=MQTT_QOS,
                 retain=True
             )
 
