@@ -1,5 +1,6 @@
 services:
   fusionsolar-mqtt:
+    container_name: fusionsolar-mqtt-test
     image: senzolink/fusionsolar-mqtt:1.0.1
     environment:
       FUSIONSOLAR_USERNAME: ${FUSIONSOLAR_USERNAME:?FUSIONSOLAR_USERNAME is required}
@@ -21,6 +22,7 @@ services:
     restart: unless-stopped
 
   mqtt:
+    container_name: fusionsolar-mqtt-test-mqtt
     image: eclipse-mosquitto:2
     command:
       - /bin/sh
