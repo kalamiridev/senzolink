@@ -43,9 +43,9 @@ cp .env.example .env
 Set the following variables in `.env`; never commit it.
 
 For local Docker Compose, this file is read automatically when Compose starts.
-For a stack UI such as Dockge, add the same variables in the stack's environment
-editor; the Compose file passes them directly to the container and does not
-require an `.env` file alongside the YAML.
+In a Compose management UI, add the same variables in its stack environment
+editor. The Compose file passes them directly to the container and does not
+require an `env_file` entry or a physical `.env` file alongside the YAML.
 
 | Variable | Description |
 | --- | --- |
@@ -269,7 +269,7 @@ Start the test stack:
 docker compose -f compose.test.yaml up -d
 ```
 
-In Dockge, deploy `compose.test.yaml` as the test stack. For production, deploy
+Use `compose.test.yaml` only as an isolated test stack. For production, use
 `compose.yaml` and set `MQTT_HOST` to your real broker.
 
 To stop and remove the test broker, run:
