@@ -133,26 +133,32 @@ MQTT_HOST=mqtt
 
 ## Registry
 
-Replace `REGISTRY_HOST` with the private registry hostname. The production
-Compose file deliberately uses the versioned `1.0.0` image tag.
+The production Compose file uses the private registry image
+`registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0`.
+
+Authenticate before building or pulling if the registry requires it:
+
+```bash
+docker login registry.kalamiri.dev
+```
 
 ```bash
 docker build \
-  -t REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0 \
+  -t registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0 \
   .
 ```
 
 ```bash
 docker push \
-  REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0
+  registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0
 ```
 
 Optionally also publish `latest`:
 
 ```bash
-docker tag REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0 \
-  REGISTRY_HOST/senzolink/fusionsolar-mqtt:latest
-docker push REGISTRY_HOST/senzolink/fusionsolar-mqtt:latest
+docker tag registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0 \
+  registry.kalamiri.dev/senzolink-fusionsolar-mqtt:latest
+docker push registry.kalamiri.dev/senzolink-fusionsolar-mqtt:latest
 ```
 
 ## Git
