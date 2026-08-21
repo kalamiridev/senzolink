@@ -1,9 +1,7 @@
 # SenzoLink FusionSolar → MQTT bridge
 
-This container reads plant data from Huawei FusionSolar and publishes it to the
-local MQTT broker. The retained MQTT payload is available to SenzoLink flows in
-Node-RED and to Home Assistant, which receives MQTT Discovery configurations on
-startup.
+Docker service that reads Huawei FusionSolar plant data and publishes it to an
+MQTT broker. It also publishes Home Assistant MQTT Discovery configurations.
 
 ## Architecture
 
@@ -14,11 +12,41 @@ Huawei FusionSolar
 fusionsolar-mqtt
         |
         v
-local Mosquitto
-        |
-        +--> Node-RED
-        |
-        +--> Home Assistant
+MQTT
+```
+
+## Requirements
+
+- Docker and Docker Compose
+- An MQTT broker reachable from the container
+- A Huawei FusionSolar account
+- A FusionSolar plant ID
+
+## Configuration
+
+```bash
+cp .env.example .env
+```
+
+Set the following variables in `.env`; never commit it.
+
+| Variable | Description |
+| --- | --- |
+| `FUSIONSOLAR_USERNAME` | Huawei FusionSolar account username. |
+| `FUSIONSOLAR_PASSWORD` | Huawei FusionSolar account password. |
+| `FUSIONSOLAR_SUBDOMAIN` | FusionSolar regional subdomain; the default is `uni001eu5`. |
+| `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
+| `MQTT_HOST` | Docker DNS name or hostname of the MQTT broker, such as `mqtt`. |
+| `MQTT_PORT` | MQTT broker port; the default is `1883`. |
+| `MQTT_TOPIC` | Topic receiving the retained plant payload. |
+| `POLL_INTERVAL` | Polling interval in seconds; the default is `60`. |
+
+## MQTT topic
+
+The expected topic format is:
+
+```text
+client/CLIENT_ID/GATEWAY_ID/FusionSolar
 ```
 
 ## MQTT payload
@@ -34,37 +62,27 @@ local Mosquitto
 }
 ```
 
-All values are examples. `power` is published in kW and energy values in kWh.
+Values are illustrative. Power is in kW and energy values are in kWh. The
+payload is published with QoS 1 and retained.
 
 ## Power fallback
 
-`flow_solar_power` is the primary power measurement. If it is `None`, the
-bridge falls back to `currentPower`. A `currentPower` value of `0.0` is a valid
-zero-production measurement. If neither value is available, the bridge raises
-an error and does not publish a new payload or timestamp.
+`flow_solar_power` is the primary power source. If it is `None`, the service
+uses `currentPower`. A `currentPower` value of `0.0` is valid. If neither value
+is available, that cycle does not publish a payload or a new timestamp.
 
 ## Self-repair
 
-After every exception the bridge discards its FusionSolar client, so the next
-attempt creates a new login/session. Three consecutive failures cause a 300 s
-backoff; a successful cycle resets the failure counter. Docker
-`restart: unless-stopped` only restarts the container if its process actually
-ends—the Python application does not restart Docker or systemd itself.
+After an exception, the current FusionSolar client is discarded, so the next
+attempt creates a new client and login. After three consecutive failures the
+service waits 300 seconds. The first successful cycle resets the failure
+counter. `restart: unless-stopped` only protects against a stopped process; it
+does not replace API retry logic.
 
-## Local FusionSolar package
+## Home Assistant discovery
 
-The working `fusionsolar_api` package from the existing SenzoLink installation
-is included unchanged. Its required external dependencies are listed in
-`requirements.txt`.
-
-## Configuration
-
-```bash
-cp .env.example .env
-```
-
-Fill in the FusionSolar account, plant ID, and SenzoLink MQTT identifiers in
-`.env`. Do not commit this file.
+On startup the service publishes MQTT Discovery sensors for current power and
+daily, monthly, yearly, and cumulative production.
 
 ## Development build
 
@@ -73,21 +91,16 @@ docker compose -f docker-compose.dev.yml build
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-The development container is named `fusionsolar-mqtt-dev`, so it can coexist
-with the production Compose definition. Do not start it on a gateway while the
-existing systemd service publishes to the same MQTT topic.
-
 ## Logs
 
 ```bash
 docker logs -f fusionsolar-mqtt-dev
 ```
 
-Use `fusionsolar-mqtt` when running the production Compose service.
-
 ## Production deployment
 
-Build and push the image first (see [Registry](#registry)), then on the gateway:
+Replace `REGISTRY_HOST` in `docker-compose.yml` with your private registry
+hostname, then:
 
 ```bash
 docker compose pull
@@ -106,67 +119,27 @@ Restart the service:
 docker compose restart fusionsolar-mqtt
 ```
 
-Stop it:
-
-```bash
-docker compose down
-```
-
 ## Docker network
 
-The external Docker network `proxy` must already exist:
-
-```bash
-docker network inspect proxy
-```
-
-The container needs this network to resolve and reach the local MQTT broker.
-
-## MQTT DNS
-
-`MQTT_HOST` must not be `127.0.0.1`, because that address points back to the
-bridge container. Use the MQTT container's Docker DNS name, for example:
+The Compose examples use an external Docker network named `proxy`. The broker
+is reached through Docker DNS, for example:
 
 ```env
 MQTT_HOST=mqtt
 ```
 
-## Registry
+Users with a different Docker environment can adapt the Compose network and
+broker hostname accordingly.
 
-The production Compose file uses the private registry image
-`registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0`.
-
-Authenticate before building or pulling if the registry requires it:
-
-```bash
-docker login registry.kalamiri.dev
-```
+## Registry build
 
 ```bash
 docker build \
-  -t registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0 \
+  -t REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0 \
   .
 ```
 
 ```bash
 docker push \
-  registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0
+  REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0
 ```
-
-Optionally also publish `latest`:
-
-```bash
-docker tag registry.kalamiri.dev/senzolink-fusionsolar-mqtt:1.0.0 \
-  registry.kalamiri.dev/senzolink-fusionsolar-mqtt:latest
-docker push registry.kalamiri.dev/senzolink-fusionsolar-mqtt:latest
-```
-
-## Git
-
-```bash
-git init
-git add .
-git commit -m "Initial FusionSolar MQTT Docker bridge"
-```
-
-No remote is configured or pushed automatically.
