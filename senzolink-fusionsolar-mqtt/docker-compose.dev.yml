@@ -1,0 +1,15 @@
+services:
+  fusionsolar-mqtt:
+    build:
+      context: .
+    image: senzolink-fusionsolar-mqtt:dev
+    container_name: fusionsolar-mqtt-dev
+    env_file:
+      - .env
+    networks:
+      - proxy
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,11 @@
+.env
+.git
+__pycache__
+*.pyc
+venv
+.venv
+.pytest_cache
+.mypy_cache
+.coverage
+*.tar.gz
+*.zip

@@ -1,0 +1,13 @@
+services:
+  fusionsolar-mqtt:
+    image: REGISTRY_HOST/senzolink/fusionsolar-mqtt:1.0.0
+    container_name: fusionsolar-mqtt
+    env_file:
+      - .env
+    networks:
+      - proxy
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
