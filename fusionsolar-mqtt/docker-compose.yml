@@ -1,6 +1,18 @@
 services:
   fusionsolar-mqtt:
     image: senzolink/fusionsolar-mqtt:1.0.1
-    env_file:
-      - .env
+    environment:
+      FUSIONSOLAR_USERNAME: ${FUSIONSOLAR_USERNAME:?FUSIONSOLAR_USERNAME is required}
+      FUSIONSOLAR_PASSWORD: ${FUSIONSOLAR_PASSWORD:?FUSIONSOLAR_PASSWORD is required}
+      FUSIONSOLAR_SUBDOMAIN: ${FUSIONSOLAR_SUBDOMAIN:?FUSIONSOLAR_SUBDOMAIN is required}
+      FUSIONSOLAR_PLANT_ID: ${FUSIONSOLAR_PLANT_ID:?FUSIONSOLAR_PLANT_ID is required}
+      MQTT_HOST: ${MQTT_HOST:?MQTT_HOST is required}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TOPIC: ${MQTT_TOPIC:-fusionsolar/state}
+      MQTT_QOS: ${MQTT_QOS:-0}
+      HA_DISCOVERY_ENABLED: ${HA_DISCOVERY_ENABLED:-true}
+      HA_DISCOVERY_PREFIX: ${HA_DISCOVERY_PREFIX:-homeassistant}
+      HA_DISCOVERY_NODE_ID: ${HA_DISCOVERY_NODE_ID:-fusionsolar}
+      HA_DEVICE_ID: ${HA_DEVICE_ID:-}
+      POLL_INTERVAL: ${POLL_INTERVAL:-60}
     restart: unless-stopped

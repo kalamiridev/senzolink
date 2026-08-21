@@ -42,6 +42,11 @@ cp .env.example .env
 
 Set the following variables in `.env`; never commit it.
 
+For local Docker Compose, this file is read automatically when Compose starts.
+For a stack UI such as Dockge, add the same variables in the stack's environment
+editor; the Compose file passes them directly to the container and does not
+require an `.env` file alongside the YAML.
+
 | Variable | Description |
 | --- | --- |
 | `FUSIONSOLAR_USERNAME` | Huawei FusionSolar account username. |
