@@ -2,6 +2,8 @@ import os
 import json
 import time
 import logging
+import hashlib
+import re
 
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
@@ -58,6 +60,41 @@ POLL_INTERVAL = int(
 
 
 # --------------------------------------------------
+# Home Assistant MQTT Discovery
+# --------------------------------------------------
+
+HA_DISCOVERY_ENABLED = os.getenv(
+    "HA_DISCOVERY_ENABLED",
+    "true"
+).strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off"
+}
+
+HA_DISCOVERY_PREFIX = os.getenv(
+    "HA_DISCOVERY_PREFIX",
+    "homeassistant"
+).strip("/")
+
+HA_DISCOVERY_NODE_ID = os.getenv(
+    "HA_DISCOVERY_NODE_ID",
+    "fusionsolar"
+).strip()
+
+DEFAULT_HA_DEVICE_ID = (
+    "fusionsolar_"
+    f"{hashlib.sha256(MQTT_TOPIC.encode('utf-8')).hexdigest()[:12]}"
+)
+
+HA_DEVICE_ID = os.getenv(
+    "HA_DEVICE_ID",
+    DEFAULT_HA_DEVICE_ID
+).strip() or DEFAULT_HA_DEVICE_ID
+
+
+# --------------------------------------------------
 # Self-repair
 # --------------------------------------------------
 
@@ -66,35 +103,39 @@ FAILURE_BACKOFF = 300
 
 
 # --------------------------------------------------
-# SenzoLink IDs from MQTT topic
-#
-# Expected:
-# client/<client_id>/<gateway_id>/FusionSolar
+# MQTT topic validation
 # --------------------------------------------------
 
-topic_parts = MQTT_TOPIC.strip("/").split("/")
-
-if (
-    len(topic_parts) < 4
-    or topic_parts[0] != "client"
-):
+if not MQTT_TOPIC.strip():
     raise RuntimeError(
-        f"Unexpected MQTT_TOPIC format: {MQTT_TOPIC}"
+        "MQTT_TOPIC must not be empty"
     )
 
-SENZOLINK_CLIENT_ID = topic_parts[1]
-SENZOLINK_GATEWAY_ID = topic_parts[2]
+if HA_DISCOVERY_ENABLED:
 
+    if not HA_DISCOVERY_PREFIX:
+        raise RuntimeError(
+            "HA_DISCOVERY_PREFIX must not be empty"
+        )
 
-DISCOVERY_BASE = (
-    f"client/{SENZOLINK_CLIENT_ID}/"
-    "ha/sensor/fusionsolar"
-)
+    for name, value in {
+        "HA_DISCOVERY_NODE_ID": HA_DISCOVERY_NODE_ID,
+        "HA_DEVICE_ID": HA_DEVICE_ID
+    }.items():
 
-DEVICE_ID = (
-    f"senzolink_{SENZOLINK_CLIENT_ID}_"
-    f"{SENZOLINK_GATEWAY_ID}_fusionsolar"
-)
+        if not re.fullmatch(
+            r"[A-Za-z0-9_-]+",
+            value
+        ):
+            raise RuntimeError(
+                f"{name} may contain only letters, numbers, "
+                "underscores, and hyphens"
+            )
+
+    DISCOVERY_BASE = (
+        f"{HA_DISCOVERY_PREFIX}/sensor/"
+        f"{HA_DISCOVERY_NODE_ID}"
+    )
 
 
 # --------------------------------------------------
@@ -131,7 +172,7 @@ def create_fusionsolar_client():
 def publish_discovery(client):
 
     device = {
-        "identifiers": [DEVICE_ID],
+        "identifiers": [HA_DEVICE_ID],
         "name": "FusionSolar",
         "manufacturer": "Huawei",
         "model": "FusionSolar Plant"
@@ -140,8 +181,8 @@ def publish_discovery(client):
     sensors = {
 
         "power": {
-            "name": "Trenutna snaga",
-            "unique_id": f"{DEVICE_ID}_power",
+            "name": "Current Power",
+            "unique_id": f"{HA_DEVICE_ID}_power",
             "device_class": "power",
             "state_class": "measurement",
             "unit_of_measurement": "kW",
@@ -149,8 +190,8 @@ def publish_discovery(client):
         },
 
         "daily_energy": {
-            "name": "Današnja proizvodnja",
-            "unique_id": f"{DEVICE_ID}_daily_energy",
+            "name": "Daily Production",
+            "unique_id": f"{HA_DEVICE_ID}_daily_energy",
             "device_class": "energy",
             "state_class": "total_increasing",
             "unit_of_measurement": "kWh",
@@ -158,8 +199,8 @@ def publish_discovery(client):
         },
 
         "month_energy": {
-            "name": "Mjesečna proizvodnja",
-            "unique_id": f"{DEVICE_ID}_month_energy",
+            "name": "Monthly Production",
+            "unique_id": f"{HA_DEVICE_ID}_month_energy",
             "device_class": "energy",
             "state_class": "total_increasing",
             "unit_of_measurement": "kWh",
@@ -167,8 +208,8 @@ def publish_discovery(client):
         },
 
         "year_energy": {
-            "name": "Godišnja proizvodnja",
-            "unique_id": f"{DEVICE_ID}_year_energy",
+            "name": "Yearly Production",
+            "unique_id": f"{HA_DEVICE_ID}_year_energy",
             "device_class": "energy",
             "state_class": "total_increasing",
             "unit_of_measurement": "kWh",
@@ -176,8 +217,8 @@ def publish_discovery(client):
         },
 
         "cumulative_energy": {
-            "name": "Ukupna proizvodnja",
-            "unique_id": f"{DEVICE_ID}_cumulative_energy",
+            "name": "Total Production",
+            "unique_id": f"{HA_DEVICE_ID}_cumulative_energy",
             "device_class": "energy",
             "state_class": "total_increasing",
             "unit_of_measurement": "kWh",
@@ -204,7 +245,8 @@ def publish_discovery(client):
         result.wait_for_publish()
 
     logging.info(
-        "FusionSolar Home Assistant discovery published"
+        "Home Assistant discovery published under %s",
+        DISCOVERY_BASE
     )
 
 
@@ -226,7 +268,8 @@ def create_mqtt_client():
 
     client.loop_start()
 
-    publish_discovery(client)
+    if HA_DISCOVERY_ENABLED:
+        publish_discovery(client)
 
     return client
 
@@ -396,12 +439,9 @@ def main():
             result.wait_for_publish()
 
             logging.info(
-                "Solar: %.3f kW | "
-                "Today: %s kWh | "
-                "Month: %s kWh",
-                payload["power"],
-                payload["daily_energy"],
-                payload["month_energy"]
+                "MQTT published to %s: %s",
+                MQTT_TOPIC,
+                payload_json
             )
 
             consecutive_failures = 0

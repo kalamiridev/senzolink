@@ -1,7 +1,7 @@
-# SenzoLink FusionSolar → MQTT bridge
+# FusionSolar → MQTT bridge
 
 Docker service that reads Huawei FusionSolar plant data and publishes it to an
-MQTT broker. It also publishes Home Assistant MQTT Discovery configurations.
+MQTT broker.
 
 ## Architecture
 
@@ -38,28 +38,24 @@ Set the following variables in `.env`; never commit it.
 | `FUSIONSOLAR_PLANT_ID` | Plant identifier to query. |
 | `MQTT_HOST` | Docker DNS name or hostname of the MQTT broker, such as `mqtt`. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
-| `MQTT_TOPIC` | Required SenzoLink-compatible topic receiving the retained plant payload. |
+| `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
+| `HA_DISCOVERY_ENABLED` | Enables Home Assistant discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
+| `HA_DISCOVERY_PREFIX` | Home Assistant discovery prefix; defaults to `homeassistant`. |
+| `HA_DISCOVERY_NODE_ID` | Discovery node ID; defaults to `fusionsolar`. |
+| `HA_DEVICE_ID` | Optional stable device ID. Leave it empty to derive a stable ID from `MQTT_TOPIC`. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `60`. |
 
-## MQTT topic and SenzoLink convention
+## MQTT topic
 
-`MQTT_TOPIC` is not an arbitrary MQTT topic in this version of the service. It
-must use this exact four-part format:
-
-```text
-client/CLIENT_ID/GATEWAY_ID/FusionSolar
-```
-
-The service uses `CLIENT_ID` and `GATEWAY_ID` to build stable Home Assistant
-device identifiers and discovery topics. For a non-SenzoLink installation,
-choose your own stable values, for example:
+`MQTT_TOPIC` can be any non-empty MQTT topic. For example:
 
 ```text
-client/my-home/gateway-1/FusionSolar
+solar/fusionsolar/state
 ```
 
-Do not use a topic such as `solar/fusionsolar`: the application rejects it
-because it cannot derive the required identifiers.
+The payload is retained on this topic, so MQTT clients that subscribe later
+receive the latest known values immediately.
+
 
 ## MQTT payload
 
@@ -91,34 +87,62 @@ service waits 300 seconds. The first successful cycle resets the failure
 counter. `restart: unless-stopped` only protects against a stopped process; it
 does not replace API retry logic.
 
-## Home Assistant discovery
+## Home Assistant
 
-On startup the service publishes retained MQTT Discovery sensors for current
-power and daily, monthly, yearly, and cumulative production.
-
-For `MQTT_TOPIC=client/CLIENT_ID/GATEWAY_ID/FusionSolar`, the configuration
-messages are published below:
-
-```text
-client/CLIENT_ID/ha/sensor/fusionsolar/<sensor>/config
-```
-
-Home Assistant uses `homeassistant` as its default MQTT discovery prefix, so
-change the MQTT integration's discovery prefix to this matching value:
+By default, the bridge publishes retained Home Assistant MQTT Discovery
+configuration for five sensors: current power plus daily, monthly, yearly, and
+cumulative energy. With the `.env.example` defaults, the configuration topics
+are:
 
 ```text
-client/CLIENT_ID/ha
+homeassistant/sensor/fusionsolar/<sensor>/config
 ```
 
-In Home Assistant, open **Settings → Devices & services → MQTT → Configure →
-Configure MQTT Options**, then set the discovery prefix. Home Assistant must
-connect to the same MQTT broker, and the discovery prefix must use the same
-`CLIENT_ID` segment as `MQTT_TOPIC`. After starting the container, look for the
-**FusionSolar** device in Home Assistant. The retained discovery messages also
-let Home Assistant discover the sensors after a restart.
+This is the standard Home Assistant discovery prefix. Connect Home Assistant to
+the same broker, enable MQTT discovery, then start the bridge. Each discovered
+sensor reads the retained JSON from `MQTT_TOPIC`, for example:
 
-See the [Home Assistant MQTT documentation](https://www.home-assistant.io/integrations/mqtt/)
-for its current MQTT integration setup and discovery options.
+```text
+fusionsolar/state
+```
+
+## Custom Home Assistant discovery
+
+If your own system, Node-RED, or another service already publishes Home
+Assistant discovery configuration, disable the bridge's discovery messages:
+
+```env
+HA_DISCOVERY_ENABLED=false
+```
+
+The bridge then only publishes its retained JSON payload to `MQTT_TOPIC`. Your
+custom discovery configuration should use that value as its `state_topic` and
+read the documented JSON keys, for example `value_json.power`.
+
+To use a non-standard discovery prefix while keeping bridge-managed discovery,
+set a custom prefix:
+
+```env
+HA_DISCOVERY_PREFIX=my-discovery
+```
+
+Home Assistant must then use the same discovery prefix. `HA_DISCOVERY_NODE_ID`
+and `HA_DEVICE_ID` let multiple bridge instances share one broker without
+discovery-topic or device-ID collisions.
+
+## Verifying publishes from container logs
+
+After a successful QoS 1 publish, the container logs the exact payload topic
+and JSON, for example:
+
+```text
+MQTT published to solar/fusionsolar/state: {"power":1.743,...}
+```
+
+The log is written after `wait_for_publish()` completes, which for QoS 1 means
+the broker has completed the publish acknowledgement. It confirms delivery to
+the MQTT broker, but does not prove that Home Assistant has processed the
+message.
 
 ## Development build
 
