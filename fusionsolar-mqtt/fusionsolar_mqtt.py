@@ -82,13 +82,13 @@ HA_DISCOVERY_ENABLED = env_bool("HA_DISCOVERY_ENABLED", "true")
 HA_DISCOVERY_NODE_ID = os.getenv("HA_DISCOVERY_NODE_ID", "fusionsolar").strip()
 
 DAY_POLL_INTERVAL = env_int("POLL_INTERVAL", "180", 30, 86400)
+KEEP_ALIVE_INTERVAL = env_int("KEEP_ALIVE_INTERVAL", "600", 30, 86400)
 FUSIONSOLAR_PAUSE_START = optional_env_time("FUSIONSOLAR_PAUSE_START")
 FUSIONSOLAR_PAUSE_END = optional_env_time("FUSIONSOLAR_PAUSE_END")
 FUSIONSOLAR_PAUSE_TIMEZONE_NAME = os.getenv("TZ", "").strip()
 
 MAX_CONSECUTIVE_FAILURES = 3
 FAILURE_BACKOFF = 300
-SESSION_REFRESH_INTERVAL = 25 * 60
 FUSIONSOLAR_PAUSE_TIMEZONE = None
 
 if any(character in MQTT_TOPIC for character in ("+", "#", "\x00")):
@@ -464,7 +464,7 @@ def main():
     mqtt_client = create_mqtt_client()
 
     fusion_client = None
-    fusion_client_created_at = None
+    last_keep_alive_at = None
 
     plant_id = None
 
@@ -474,6 +474,12 @@ def main():
         pause_seconds = fusionsolar_pause_seconds()
 
         if pause_seconds:
+            if fusion_client is not None:
+                logging.info("FusionSolar polling inactive; session released")
+                fusion_client = None
+                last_keep_alive_at = None
+                plant_id = None
+
             logging.info(
                 "FusionSolar pause active; next poll in %d minutes",
                 math.ceil(pause_seconds / 60),
@@ -487,33 +493,39 @@ def main():
             # Create/recreate FusionSolar session
             # --------------------------------------
 
-            if (
-                fusion_client is not None
-                and fusion_client_created_at is not None
-                and (
-                    time.monotonic() - fusion_client_created_at
-                ) >= SESSION_REFRESH_INTERVAL
-            ):
-
-                logging.info(
-                    "Refreshing FusionSolar session proactively"
-                )
-
-                fusion_client = None
-                fusion_client_created_at = None
-                plant_id = None
-
             if fusion_client is None:
 
                 fusion_client = (
                     create_fusionsolar_client()
                 )
 
-                fusion_client_created_at = time.monotonic()
+                last_keep_alive_at = time.monotonic()
 
                 plant_id = select_plant_id(
                     fusion_client
                 )
+
+            if (
+                last_keep_alive_at is not None
+                and (
+                    time.monotonic() - last_keep_alive_at
+                ) >= KEEP_ALIVE_INTERVAL
+            ):
+                try:
+                    logging.debug("Sending FusionSolar keep-alive")
+                    if not fusion_client.keep_alive():
+                        raise RuntimeError(
+                            "FusionSolar keep-alive returned no payload"
+                        )
+                    last_keep_alive_at = time.monotonic()
+                except Exception:
+                    logging.warning(
+                        "FusionSolar keep-alive failed; session will be recreated"
+                    )
+                    fusion_client = None
+                    last_keep_alive_at = None
+                    plant_id = None
+                    raise
 
             # --------------------------------------
             # Get plant data
@@ -616,7 +628,7 @@ def main():
             )
 
             fusion_client = None
-            fusion_client_created_at = None
+            last_keep_alive_at = None
 
             plant_id = None
 

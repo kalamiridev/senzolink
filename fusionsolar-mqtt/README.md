@@ -71,6 +71,7 @@ require an `env_file` entry or a physical `.env` file alongside the YAML.
 | `MQTT_CONNECT_TIMEOUT` | Maximum MQTT connection wait in seconds; defaults to `30`. |
 | `MQTT_PUBLISH_TIMEOUT` | Maximum MQTT publish wait in seconds; defaults to `30`. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `180`. |
+| `KEEP_ALIVE_INTERVAL` | FusionSolar session keep-alive interval in seconds during active polling; defaults to `600`. |
 | `TZ` | IANA time zone, such as `Europe/Zagreb`; required only when pause times are set. |
 | `FUSIONSOLAR_PAUSE_START` | Optional start of a no-polling window in local `HH:MM` time. Set it together with `FUSIONSOLAR_PAUSE_END`. |
 | `FUSIONSOLAR_PAUSE_END` | Optional end of a no-polling window in local `HH:MM` time. Set it together with `FUSIONSOLAR_PAUSE_START`. |
@@ -168,21 +169,25 @@ FusionSolar cloud values commonly refresh only every few minutes. The default
 `POLL_INTERVAL=180` keeps the existing bridge behaviour; increase it when your
 account does not return newer data that often.
 
-## Proactive FusionSolar session refresh
+## FusionSolar session keep-alive
 
-Some FusionSolar accounts show a very regular session failure after roughly 33
-minutes, where the old session eventually produces an invalid login or JSON
-response. To avoid waiting for that failure, the bridge discards its current
-FusionSolar client after 25 minutes and creates a new one before the next data
-request. This is an informational refresh, not an error, and does not restart
-the container or increase the failure counter.
+During the active polling period, the bridge keeps the existing FusionSolar web
+session alive with `keep_alive()` every `KEEP_ALIVE_INTERVAL` seconds. This
+avoids unnecessary periodic logins while the bridge is polling normally.
+
+If the keep-alive request or a later FusionSolar request fails, the existing
+self-repair logic discards the client. The next active polling cycle creates a
+fresh session and login; after three consecutive failures the bridge keeps its
+existing 300-second backoff.
 
 ## Optional no-polling window
 
 Where a local installation has a period in which solar production is known to
 be impossible, it can skip FusionSolar requests and MQTT state publishes
 completely. The bridge remains running and performs its next normal poll when
-the window ends. Outside the window it always uses `POLL_INTERVAL`.
+the window ends. When the window begins, it releases the existing FusionSolar
+session; the next active poll therefore starts with a fresh login. Outside the
+window it always uses `POLL_INTERVAL`.
 
 For example, a gateway in Croatia can pause from midnight until 05:00:
 
