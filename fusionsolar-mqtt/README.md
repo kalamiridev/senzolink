@@ -189,12 +189,12 @@ the window ends. When the window begins, it releases the existing FusionSolar
 session; the next active poll therefore starts with a fresh login. Outside the
 window it always uses `POLL_INTERVAL`.
 
-For example, a gateway in Croatia can pause from midnight until 05:00:
+For example, a gateway in Croatia can pause from 22:00 until 06:00:
 
 ```env
 TZ=Europe/Zagreb
-FUSIONSOLAR_PAUSE_START=00:00
-FUSIONSOLAR_PAUSE_END=05:00
+FUSIONSOLAR_PAUSE_START=22:00
+FUSIONSOLAR_PAUSE_END=06:00
 ```
 
 This is intentionally opt-in, because a fixed civil-time window is specific to
