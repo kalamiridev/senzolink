@@ -7,6 +7,7 @@ import json
 from typing import Optional
 import re
 import requests
+from urllib.parse import urlparse
 
 from .exceptions import (
     AuthenticationException,
@@ -19,6 +20,25 @@ from .devices import plant_api
 _LOGGER = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = (10, 30)
+
+
+def _redirect_hostname(url: str) -> str | None:
+    try:
+        return (urlparse(url).hostname or "").lower() or None
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_allowed_fusionsolar_redirect(url: str) -> bool:
+    hostname = _redirect_hostname(url)
+
+    return bool(
+        hostname
+        and (
+            hostname == "fusionsolar.huawei.com"
+            or hostname.endswith(".fusionsolar.huawei.com")
+        )
+    )
 
 
 class TimeoutSession(requests.Session):
@@ -160,11 +180,25 @@ class FusionSolarClient:
         payload = login_response.get("payload", {})
         redirect_url = payload.get("redirectURL")
         if redirect_url:
+            if not isinstance(redirect_url, str):
+                _LOGGER.error("Unexpected FusionSolar redirect host: <missing>")
+                raise FusionSolarException("Unexpected FusionSolar redirect host")
+
             # If redirect URL is relative, prepend the base URL
             if redirect_url.startswith("/"):
                 redirect_url = f"https://{self._huawei_subdomain}.fusionsolar.huawei.com{redirect_url}"
+
+            if not _is_allowed_fusionsolar_redirect(redirect_url):
+                hostname = _redirect_hostname(redirect_url) or "<missing>"
+                _LOGGER.error("Unexpected FusionSolar redirect host: %s", hostname)
+                raise FusionSolarException("Unexpected FusionSolar redirect host")
+
+            parsed_redirect = urlparse(redirect_url)
             _LOGGER.debug(
-                f"Following redirect for {self._huawei_subdomain}: {redirect_url}"
+                "Following FusionSolar redirect: %s://%s%s",
+                parsed_redirect.scheme,
+                parsed_redirect.hostname,
+                parsed_redirect.path,
             )
             # Don't follow redirects - we just need the cookies from the first response
             # The final redirect may go to an internal domain that's not publicly accessible
@@ -372,19 +406,19 @@ class FusionSolarClient:
         if not self._session:
             return False
 
-        # send the request
-        r = self._session.get(
-            f"https://{self._huawei_subdomain}.fusionsolar.huawei.com/rest/dpcloud/auth/v1/is-session-alive"
-        )
-        r.raise_for_status()
-
-        # get the response
-        response_data = r.json()
-
-        if "code" not in response_data or response_data["code"] != 0:
+        try:
+            r = self._session.get(
+                f"https://{self._huawei_subdomain}.fusionsolar.huawei.com/rest/dpcloud/auth/v1/is-session-alive"
+            )
+            r.raise_for_status()
+            response_data = r.json()
+        except (requests.exceptions.RequestException, ValueError):
+            _LOGGER.debug(
+                "FusionSolar session check failed; treating session as inactive"
+            )
             return False
-        else:
-            return True
+
+        return isinstance(response_data, dict) and response_data.get("code") == 0
 
     @logged_in
     def keep_alive(self):
