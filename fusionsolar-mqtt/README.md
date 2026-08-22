@@ -225,6 +225,18 @@ the normal retry/backoff behaviour.
 
 ## Home Assistant
 
+### Prerequisite: MQTT integration
+
+The bridge does not install or configure Home Assistant's MQTT integration.
+Before starting it, add the **MQTT** integration in Home Assistant under
+**Settings → Devices & services → Add Integration**, then configure it to use
+the same MQTT broker as the bridge. Follow the
+[official MQTT integration setup guide](https://www.home-assistant.io/integrations/mqtt/)
+if the broker or integration is not already configured and connected.
+
+Only after Home Assistant is connected to that broker can it receive the
+bridge's discovery and state messages.
+
 By default, the bridge publishes retained Home Assistant MQTT Discovery
 configuration for five sensors: current power plus daily, monthly, yearly, and
 cumulative energy. With the `.env.example` defaults, the configuration topics
