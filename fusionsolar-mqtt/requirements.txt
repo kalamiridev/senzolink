@@ -1,5 +1,4 @@
-paho-mqtt
-python-dotenv
-requests
-cryptography
-gradio-client
+paho-mqtt==2.1.0
+python-dotenv==1.2.3
+requests==2.34.2
+cryptography==50.0.0

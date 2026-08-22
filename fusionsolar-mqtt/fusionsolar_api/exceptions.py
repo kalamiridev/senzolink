@@ -11,15 +11,3 @@ class AuthenticationException(FusionSolarException):
     """Issues with the supplied username or password"""
 
     pass
-
-
-class CaptchaRequiredException(FusionSolarException):
-    """A captcha is required for the login flow to proceed"""
-
-    pass
-
-
-class FusionSolarRateLimit(FusionSolarException):
-    """Exception raised when the rate limit exceeded"""
-
-    pass

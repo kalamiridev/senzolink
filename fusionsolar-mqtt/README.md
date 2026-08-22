@@ -29,9 +29,16 @@ The public image is available on Docker Hub:
 docker pull senzolink/fusionsolar-mqtt:1.0.1
 ```
 
-`compose.yaml` uses this versioned image by default. A versioned tag
-keeps deployments reproducible; update the image tag deliberately when
-upgrading.
+`compose.yaml` uses the maintained release tag by default. Pull deliberately
+when updating:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The Dockerfile itself pins its base image and Python dependency lock file, so a
+local rebuild of a given source revision uses the same inputs.
 
 ## Configuration
 
@@ -54,13 +61,19 @@ require an `env_file` entry or a physical `.env` file alongside the YAML.
 | `FUSIONSOLAR_PLANT_NAME` | Optional exact plant name as shown in FusionSolar. Required only when the account has multiple plants. |
 | `MQTT_HOST` | Required hostname or IP address of the MQTT broker, reachable from the container. |
 | `MQTT_PORT` | MQTT broker port; the default is `1883`. |
-| `MQTT_TOPIC` | Any non-empty MQTT topic receiving the retained plant payload. |
+| `MQTT_TOPIC` | Any non-empty MQTT publish topic receiving the retained plant payload; `+` and `#` are not valid here. |
 | `MQTT_QOS` | MQTT quality of service (`0`, `1`, or `2`); defaults to `0`. |
 | `MQTT_USERNAME` | Optional MQTT broker username. |
 | `MQTT_PASSWORD` | Optional MQTT broker password; requires `MQTT_USERNAME`. |
 | `MQTT_TLS_ENABLED` | Enables TLS for the MQTT connection; defaults to `false`. |
 | `HA_DISCOVERY_ENABLED` | Enables standard Home Assistant MQTT discovery; defaults to `true`. Set to `false` when another service publishes discovery configuration. |
+| `HA_DISCOVERY_NODE_ID` | Optional Home Assistant discovery identifier; defaults to `fusionsolar`. Set it only when multiple bridges share a broker. |
+| `MQTT_CONNECT_TIMEOUT` | Maximum MQTT connection wait in seconds; defaults to `30`. |
+| `MQTT_PUBLISH_TIMEOUT` | Maximum MQTT publish wait in seconds; defaults to `30`. |
 | `POLL_INTERVAL` | Polling interval in seconds; the default is `180`. |
+| `TZ` | IANA time zone, such as `Europe/Zagreb`; required only when pause times are set. |
+| `FUSIONSOLAR_PAUSE_START` | Optional start of a no-polling window in local `HH:MM` time. Set it together with `FUSIONSOLAR_PAUSE_END`. |
+| `FUSIONSOLAR_PAUSE_END` | Optional end of a no-polling window in local `HH:MM` time. Set it together with `FUSIONSOLAR_PAUSE_START`. |
 
 ## MQTT authentication and TLS
 
@@ -152,9 +165,36 @@ when exactly-once delivery between the bridge and broker is specifically
 required.
 
 FusionSolar cloud values commonly refresh only every few minutes. The default
-`POLL_INTERVAL=180` therefore avoids unnecessary API calls while keeping the
-published state reasonably fresh; lower it only when your account actually
-returns newer data more often.
+`POLL_INTERVAL=180` keeps the existing bridge behaviour; increase it when your
+account does not return newer data that often.
+
+## Proactive FusionSolar session refresh
+
+Some FusionSolar accounts show a very regular session failure after roughly 33
+minutes, where the old session eventually produces an invalid login or JSON
+response. To avoid waiting for that failure, the bridge discards its current
+FusionSolar client after 25 minutes and creates a new one before the next data
+request. This is an informational refresh, not an error, and does not restart
+the container or increase the failure counter.
+
+## Optional no-polling window
+
+Where a local installation has a period in which solar production is known to
+be impossible, it can skip FusionSolar requests and MQTT state publishes
+completely. The bridge remains running and performs its next normal poll when
+the window ends. Outside the window it always uses `POLL_INTERVAL`.
+
+For example, a gateway in Croatia can pause from midnight until 05:00:
+
+```env
+TZ=Europe/Zagreb
+FUSIONSOLAR_PAUSE_START=00:00
+FUSIONSOLAR_PAUSE_END=05:00
+```
+
+This is intentionally opt-in, because a fixed civil-time window is specific to
+the installation. No artificial MQTT heartbeat is sent during the pause; the
+last retained payload remains available.
 
 ## Power fallback
 
@@ -164,12 +204,19 @@ is available, that cycle does not publish a payload or a new timestamp.
 
 ## Self-repair
 
-After an exception, the current FusionSolar client is discarded, so the next
-attempt creates a new client and login. After three consecutive failures the
-service waits 300 seconds. The first successful cycle resets the failure
-counter. `restart: unless-stopped` restarts the container if its process exits,
-unless it was manually stopped. It complements, but does not replace, the
-in-process FusionSolar API retry logic.
+Every FusionSolar HTTP request has a 10-second connection timeout and a
+30-second read timeout. MQTT connection and publish waits are also bounded by
+the configurable MQTT timeout values. After an exception, the current
+FusionSolar client is discarded, so the next attempt creates a new client and
+login. After three consecutive failures the service waits 300 seconds. The
+first successful cycle resets the failure counter.
+
+`restart: unless-stopped` restarts the container if its process exits, unless it
+was manually stopped.
+
+The bridge deliberately does not send FusionSolar CAPTCHA images to third-party
+solvers. If FusionSolar requires a CAPTCHA, the update fails safely and follows
+the normal retry/backoff behaviour.
 
 ## Home Assistant
 
@@ -207,10 +254,18 @@ When enabled, bridge-managed discovery always uses Home Assistant's standard
 `homeassistant` prefix. The discovery configuration also sets the sensor
 subscription QoS from `MQTT_QOS`.
 
+For the usual single-bridge case, leave `HA_DISCOVERY_NODE_ID` at its default
+value, `fusionsolar`. If two bridges use the same broker, give each a distinct
+node ID to avoid retained discovery-topic and entity-ID collisions:
+
+```env
+HA_DISCOVERY_NODE_ID=fusionsolar_roof
+```
+
 ## Verifying publishes from container logs
 
-After `wait_for_publish()` completes, the container logs the exact payload
-topic and JSON, for example:
+After the bounded MQTT publish wait completes, the container logs the exact
+payload topic and JSON, for example:
 
 ```text
 MQTT published to solar/fusionsolar/state: {"power":1.743,...}
@@ -315,6 +370,17 @@ docker build \
   .
 ```
 
+## Security and supply chain
+
+The application runs as an unprivileged user. Keep `.env` private: anyone with
+access to Docker on the host can inspect container environment variables.
+
+`requirements.lock` is the exact dependency set used by the Dockerfile. Update
+it deliberately together with `requirements.txt`; Dependabot checks both the
+Python dependencies and the Docker base image weekly.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+See [third-party notices](THIRD_PARTY_NOTICES.md) for the retained attribution
+for the adapted FusionSolar client code.
