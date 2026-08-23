@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   mqtt:
-    container_name: fusionsolar-mqtt-test-mqtt
+    container_name: mqtt-test
     image: eclipse-mosquitto:2
     command:
       - /bin/sh

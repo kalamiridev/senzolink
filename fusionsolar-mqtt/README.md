@@ -225,17 +225,8 @@ the normal retry/backoff behaviour.
 
 ## Home Assistant
 
-### Prerequisite: MQTT integration
-
-The bridge does not install or configure Home Assistant's MQTT integration.
-Before starting it, add the **MQTT** integration in Home Assistant under
-**Settings → Devices & services → Add Integration**, then configure it to use
-the same MQTT broker as the bridge. Follow the
-[official MQTT integration setup guide](https://www.home-assistant.io/integrations/mqtt/)
-if the broker or integration is not already configured and connected.
-
-Only after Home Assistant is connected to that broker can it receive the
-bridge's discovery and state messages.
+To use discovery, first configure Home Assistant's MQTT integration to use the
+same broker as the bridge. See the [official MQTT setup guide](https://www.home-assistant.io/integrations/mqtt/).
 
 By default, the bridge publishes retained Home Assistant MQTT Discovery
 configuration for five sensors: current power plus daily, monthly, yearly, and
@@ -301,7 +292,7 @@ docker compose -f compose.dev.yaml up --build -d
 ## Logs
 
 ```bash
-docker compose -f compose.dev.yaml logs -f fusionsolar-mqtt
+docker logs -f fusionsolar-mqtt-dev
 ```
 
 ## Production deployment
@@ -327,31 +318,15 @@ docker compose restart fusionsolar-mqtt
 
 ## MQTT network
 
-The Compose files do not require a pre-existing Docker network. Set
-`MQTT_HOST` to a DNS name or IP address that is reachable from the container,
-for example:
+Set `MQTT_HOST` to the MQTT broker hostname or IP address reachable from the
+bridge container:
 
 ```env
 MQTT_HOST=mqtt.example.net
 ```
 
-If your broker is a service in another Docker Compose project, attach this
-service to the same external network with a local Compose override. For
-example, create `compose.override.yaml` next to `compose.yaml`:
-
-```yaml
-services:
-  fusionsolar-mqtt:
-    networks:
-      - mqtt
-
-networks:
-  mqtt:
-    external: true
-    name: mqtt
-```
-
-Set `MQTT_HOST` to the broker's Docker DNS name on that shared network.
+If the broker is another Docker container, both containers must be able to
+reach each other over the same Docker network.
 
 ## Local MQTT test broker
 
@@ -368,6 +343,18 @@ Start the test stack:
 
 ```bash
 docker compose -f compose.test.yaml up -d
+```
+
+Bridge logs:
+
+```bash
+docker logs -f fusionsolar-mqtt-test
+```
+
+Test MQTT broker logs:
+
+```bash
+docker logs -f mqtt-test
 ```
 
 Use `compose.test.yaml` only as an isolated test stack. For production, use
