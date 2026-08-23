@@ -339,6 +339,19 @@ Set the required FusionSolar variables in your local `.env` or stack
 environment editor. `MQTT_HOST` is not required for this test stack because it
 is fixed to its internal broker.
 
+The test publishes to `fusionsolar/state`.
+
+Minimal `.env`:
+
+```env
+FUSIONSOLAR_USERNAME=your-username
+FUSIONSOLAR_PASSWORD=your-password
+FUSIONSOLAR_SUBDOMAIN=region01eu5
+```
+
+If the account has multiple plants, also set `FUSIONSOLAR_PLANT_NAME` to the
+exact plant name shown in FusionSolar.
+
 Start the test stack:
 
 ```bash
