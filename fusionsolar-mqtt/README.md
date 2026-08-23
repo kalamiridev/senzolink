@@ -349,9 +349,6 @@ FUSIONSOLAR_PASSWORD=your-password
 FUSIONSOLAR_SUBDOMAIN=region01eu5
 ```
 
-If the account has multiple plants, also set `FUSIONSOLAR_PLANT_NAME` to the
-exact plant name shown in FusionSolar.
-
 Start the test stack:
 
 ```bash
