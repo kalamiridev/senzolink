@@ -10,6 +10,14 @@ https://github.com/kalamiridev/kalamiri-labs/tree/main/integrations/fusionsolar-
 
 The service reads Huawei FusionSolar plant data, publishes it to MQTT and optionally provides Home Assistant MQTT Discovery.
 
+## HomeKit MQTT
+
+The HomeKit MQTT bridge is maintained at:
+
+https://github.com/kalamiridev/kalamiri-labs/tree/main/integrations/homekit-mqtt
+
+The service pairs with HomeKit accessories on the local network, publishes their state to MQTT and writes commands back to them, without Home Assistant or an Apple device. Home Assistant MQTT Discovery is optional.
+
 ## Kalamiri Labs
 
 For current open-source integrations, tools and technical projects, see:
